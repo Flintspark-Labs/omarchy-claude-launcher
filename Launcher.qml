@@ -125,8 +125,9 @@ Item {
   component Chip: Rectangle {
     property string label
     property bool active
-    implicitWidth: chipText.implicitWidth + Style.spacing.md * 2
-    implicitHeight: chipText.implicitHeight + Style.spacing.controlPaddingY * 2
+    signal clicked()
+    implicitWidth: chipText.implicitWidth + Style.spacing.lg * 2
+    implicitHeight: chipText.implicitHeight + Style.spacing.controlPaddingY * 2 + Style.spacing.sm
     radius: Style.cornerRadius
     color: active ? root.selectedBackground : "transparent"
     Text {
@@ -139,6 +140,58 @@ Item {
       font.family: root.fontFamily
       font.pixelSize: Style.font.heading
     }
+    MouseArea { anchors.fill: parent; onClicked: parent.clicked() }
+  }
+
+  component Section: Text {
+    textFormat: Text.PlainText
+    color: root.foreground
+    opacity: 0.45
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    font.letterSpacing: 1.5
+    font.capitalization: Font.AllUppercase
+  }
+
+  // One selectable line: a dim key badge on the left, the label, an optional dim detail.
+  component Row2: Rectangle {
+    property string badge
+    property string label
+    property string detail
+    property bool active
+    signal clicked()
+    width: parent.width
+    implicitHeight: rowText.implicitHeight + Style.spacing.md * 2
+    radius: Style.cornerRadius
+    color: active ? root.selectedBackground : "transparent"
+    Text {
+      anchors.left: parent.left
+      anchors.leftMargin: Style.spacing.lg
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(48)
+      text: parent.badge
+      textFormat: Text.PlainText
+      color: root.foreground
+      opacity: 0.4
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+    Text {
+      id: rowText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.spacing.lg + Style.space(56)
+      anchors.right: parent.right
+      anchors.rightMargin: Style.spacing.lg
+      anchors.verticalCenter: parent.verticalCenter
+      elide: Text.ElideMiddle
+      textFormat: Text.PlainText
+      text: parent.label + (parent.detail ? "    " + parent.detail : "")
+      color: parent.active ? root.selectedText : root.foreground
+      opacity: parent.active ? 1 : 0.8
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+    }
+    MouseArea { anchors.fill: parent; onClicked: parent.clicked() }
   }
 
   PanelWindow {
@@ -156,13 +209,13 @@ Item {
 
     BorderSurface {
       id: card
-      width: Math.min(Style.space(520), panel.width - Style.gapsOut * 2)
-      height: content.implicitHeight + Style.spacing.panelPadding * 2
+      width: Math.min(Style.space(640), panel.width - Style.gapsOut * 2)
+      height: content.implicitHeight + Style.spacing.panelPadding * 3
       anchors.centerIn: parent
       radius: Style.cornerRadius
       color: root.background
       borderSpec: root.borderSpec
-      padding: Style.spacing.panelPadding
+      padding: Style.spacing.panelPadding * 1.5
 
       MouseArea { anchors.fill: parent; onClicked: {} }
 
@@ -199,56 +252,80 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: card.padding
-        spacing: Style.spacing.md
+        spacing: Style.spacing.xl
 
         Text {
           text: "Claude Launcher"
           textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.title
+          font.pixelSize: Style.font.heading
         }
-        Row {
-          spacing: Style.spacing.sm
-          Repeater { model: root.models; Chip { label: modelData; active: index === root.modelIndex } }
-        }
-        Row {
-          spacing: Style.spacing.sm
-          Repeater { model: root.efforts; Chip { label: modelData; active: index === root.effortIndex } }
-        }
+
         Column {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Section { text: "Model" }
+          Row {
+            spacing: Style.spacing.sm
+            Repeater { model: root.models; Chip { label: modelData; active: index === root.modelIndex; onClicked: root.modelIndex = index } }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Section { text: "Thinking" }
+          Row {
+            spacing: Style.spacing.sm
+            Repeater { model: root.efforts; Chip { label: modelData; active: index === root.effortIndex; onClicked: root.effortIndex = index } }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.spacing.xs
+          Section { text: "Folder"; bottomPadding: Style.spacing.sm }
           Repeater {
             model: root.folders
-            Text {
-              textFormat: Text.PlainText
-              elide: Text.ElideMiddle
-              width: content.width
-              color: index === root.folderIndex ? root.selectedText : root.foreground
-              opacity: index === root.folderIndex ? 1 : 0.6
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              text: (index === 0 ? "alt+0 " : "alt+" + index + " ") + root.tilde(modelData) + (index === 0 ? "  (terminal)" : "")
+            Row2 {
+              badge: "alt+" + index
+              label: root.tilde(modelData)
+              detail: index === 0 ? "terminal" : ""
+              active: index === root.folderIndex
+              onClicked: root.folderIndex = index
+            }
+          }
+          Row2 { badge: "b"; label: "Choose another folder…"; onClicked: root.browse() }
+        }
+
+        Column {
+          visible: root.profiles.length > 0
+          width: parent.width
+          spacing: Style.spacing.xs
+          Section { text: "Launch a profile"; bottomPadding: Style.spacing.sm }
+          Repeater {
+            model: root.profiles.slice(0, 9)
+            Row2 {
+              badge: String(index + 1)
+              label: modelData.name
+              detail: modelData.model + " / " + (modelData.effort || "default")
+              onClicked: root.launchProfile(index)
             }
           }
         }
-        Repeater {
-          model: root.profiles.slice(0, 9)
-          Text {
-            textFormat: Text.PlainText
-            color: root.foreground
-            opacity: 0.8
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            text: (index + 1) + "  " + modelData.name + "  ·  " + modelData.model + " / " + (modelData.effort || "default")
-          }
-        }
+
+        Rectangle { width: parent.width; height: 1; color: root.foreground; opacity: 0.12 }
+
         Text {
+          width: parent.width
+          wrapMode: Text.WordWrap
           textFormat: Text.PlainText
           color: root.foreground
           opacity: 0.45
           font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          text: "←/→ model  ↑/↓ thinking  [ ] folder  b browse  ⏎ launch  1-9 profile"
+          font.pixelSize: Style.font.bodySmall
+          text: "←/→ model   ↑/↓ thinking   [ ] folder   b browse   ⏎ launch   esc close"
         }
       }
     }
