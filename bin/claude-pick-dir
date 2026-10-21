@@ -1,0 +1,5 @@
+#!/bin/bash
+# Runs in a TUI terminal: pick any folder under $HOME, then start claude there.
+# Usage: claude-pick-dir <model> <effort>
+dir=$(find "$HOME" -maxdepth 4 -type d -not -path '*/.*' 2>/dev/null | fzf --prompt="Claude folder > ") || exit 0
+exec "$(dirname "$(readlink -f "$0")")/claude-launch" --here --dir "$dir" "$@"

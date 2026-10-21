@@ -1,13 +1,28 @@
 #!/bin/bash
-# Usage: claude-launch <fable|opus|sonnet|haiku> <default|low|medium|high|xhigh|max>
-#        claude-launch --profile <name>
+# Usage: claude-launch [--dir <path>] [--here] <fable|opus|sonnet|haiku> <default|low|medium|high|xhigh|max>
+#        claude-launch [--dir <path>] [--here] --profile <name>
+# Also: symlinked as claude-fable|opus|sonnet|haiku it runs in $PWD and passes its args to claude.
+# --here runs claude in this terminal instead of opening a new one.
 CONFIG="${CLAUDE_LAUNCHER_CONFIG:-$HOME/.config/omarchy/claude-launcher.json}"
 
-if [[ ${1:-} == --profile ]]; then
-  read -r model effort < <(jq -r --arg n "$2" '.profiles[] | select(.name == $n) | "\(.model) \(.effort // "default")"' "$CONFIG")
-  [[ -n ${model:-} ]] || { echo "no profile named '$2' in $CONFIG" >&2; exit 1; }
+dir=""; here=0; extra=()
+base=$(basename "$0")
+if [[ $base =~ ^claude-(fable|opus|sonnet|haiku)$ ]]; then
+  # Invoked via a claude-<model> symlink: run here, in $PWD, with that model's first profile's effort.
+  model=${BASH_REMATCH[1]}; here=1; dir=$PWD; extra=("$@")
+  effort=$(jq -r --arg m "$model" '[.profiles[] | select(.model == $m)][0].effort // "default"' "$CONFIG" 2>/dev/null)
+  effort=${effort:-default}
 else
-  model=${1:?model required}; effort=${2:-default}
+  while [[ ${1:-} == --dir || ${1:-} == --here ]]; do
+    if [[ $1 == --dir ]]; then dir=$2; shift 2; else here=1; shift; fi
+  done
+
+  if [[ ${1:-} == --profile ]]; then
+    read -r model effort < <(jq -r --arg n "$2" '.profiles[] | select(.name == $n) | "\(.model) \(.effort // "default")"' "$CONFIG")
+    [[ -n ${model:-} ]] || { echo "no profile named '$2' in $CONFIG" >&2; exit 1; }
+  else
+    model=${1:?model required}; effort=${2:-default}
+  fi
 fi
 
 case $model in
@@ -21,4 +36,14 @@ case $effort in default|low|medium|high|xhigh|max) ;; *) echo "unknown effort: $
 
 args=(claude --model "$id")
 [[ $effort == default ]] || args+=(--effort "$effort")
-exec omarchy-launch-terminal "${args[@]}"
+args+=("${extra[@]}")
+[[ -n $dir ]] || dir=$(omarchy-cmd-terminal-cwd)
+[[ -d $dir ]] || { echo "not a directory: $dir" >&2; exit 1; }
+
+# Most-recently-used folders, newest first, capped at 5.
+recent="${XDG_STATE_HOME:-$HOME/.local/state}/claude-launcher/recent"
+mkdir -p "$(dirname "$recent")"
+{ echo "$dir"; grep -vxF "$dir" "$recent" 2>/dev/null; } | head -5 > "$recent.tmp" && mv "$recent.tmp" "$recent"
+
+if (( here )); then cd "$dir" && exec "${args[@]}"; fi
+exec setsid uwsm-app -- xdg-terminal-exec --dir="$dir" "${args[@]}"

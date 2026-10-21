@@ -6,6 +6,10 @@ CONFIG="${CLAUDE_LAUNCHER_CONFIG:-$HOME/.config/omarchy/claude-launcher.json}"
 OUT="$HOME/.config/hypr/claude-launcher.lua"
 BINDINGS="$HOME/.config/hypr/bindings.lua"
 
+# CLI shortcuts: claude-fable, claude-opus, claude-sonnet, claude-haiku
+mkdir -p "$HOME/.local/bin"
+for m in fable opus sonnet haiku; do ln -sf "$DIR/claude-launch" "$HOME/.local/bin/claude-$m"; done
+
 [[ -f $CONFIG ]] || { mkdir -p "$(dirname "$CONFIG")"; cp "$DIR/../examples/claude-launcher.json" "$CONFIG"; echo "created $CONFIG"; }
 
 {

@@ -22,6 +22,12 @@ Item {
   property int modelIndex: 1
   property int effortIndex: 0
   property var profiles: []
+  property var recents: []
+  property string currentDir: ""
+  // Slot 0 is the active terminal's folder, slots 1-5 are the recent folders.
+  property int folderIndex: 0
+  readonly property var folders: [root.currentDir].concat(root.recents.filter(function(d) { return d !== root.currentDir }).slice(0, 5))
+  readonly property string recentPath: Quickshell.env("HOME") + "/.local/state/claude-launcher/recent"
 
   // Shares the [menu] surface tokens, so any theme that styles the menu styles this.
   property color background: Commons.Color.menu.background
@@ -33,9 +39,30 @@ Item {
   property color selectedText: Commons.Color.menu.selectedText
   property string fontFamily: Style.font.menuFamily
 
+  // Resolve the terminal's folder before the overlay takes focus.
   function open(payloadJson) {
+    root.folderIndex = 0
+    cwdProc.running = true
+  }
+
+  function show() {
     root.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function tilde(path) {
+    var home = Quickshell.env("HOME")
+    return path.indexOf(home) === 0 ? "~" + path.slice(home.length) : path
+  }
+
+  function pickFolder(i) {
+    if (i >= 0 && i < root.folders.length) root.folderIndex = i
+  }
+
+  function browse() {
+    var args = ["omarchy-launch-tui", "--app-id=org.omarchy.claude-pick-dir", root.pluginDir + "bin/claude-pick-dir", root.models[root.modelIndex], root.efforts[root.effortIndex]]
+    root.dismiss()
+    Quickshell.execDetached(args)
   }
 
   function dismiss() {
@@ -54,14 +81,14 @@ Item {
   }
 
   function launch() {
-    var args = [root.pluginDir + "bin/claude-launch", root.models[root.modelIndex], root.efforts[root.effortIndex]]
+    var args = [root.pluginDir + "bin/claude-launch", "--dir", root.folders[root.folderIndex], root.models[root.modelIndex], root.efforts[root.effortIndex]]
     root.dismiss()
     Quickshell.execDetached(args)
   }
 
   function launchProfile(i) {
     if (i < 0 || i >= root.profiles.length) return
-    var args = [root.pluginDir + "bin/claude-launch", "--profile", root.profiles[i].name]
+    var args = [root.pluginDir + "bin/claude-launch", "--dir", root.folders[root.folderIndex], "--profile", root.profiles[i].name]
     root.dismiss()
     Quickshell.execDetached(args)
   }
@@ -74,6 +101,24 @@ Item {
       try { root.profiles = JSON.parse(text()).profiles || [] } catch (e) { root.profiles = [] }
     }
     onLoadFailed: root.profiles = []
+    onFileChanged: reload()
+  }
+
+  Process {
+    id: cwdProc
+    command: ["omarchy-cmd-terminal-cwd"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: { root.currentDir = text.trim(); root.show() }
+    }
+  }
+
+  FileView {
+    path: root.recentPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.recents = text().split("\n").filter(function(l) { return l })
+    onLoadFailed: root.recents = []
     onFileChanged: reload()
   }
 
@@ -128,7 +173,15 @@ Item {
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
           var k = event.key
-          if (k === Qt.Key_Escape) root.dismiss()
+          if (event.modifiers & Qt.AltModifier) {
+            if (k === Qt.Key_0) root.pickFolder(0)
+            else if (k >= Qt.Key_1 && k <= Qt.Key_5) root.pickFolder(k - Qt.Key_0)
+            else return
+          }
+          else if (k === Qt.Key_BracketRight || k === Qt.Key_PageDown) root.folderIndex = root.rotate(root.folderIndex, root.folders, 1)
+          else if (k === Qt.Key_BracketLeft || k === Qt.Key_PageUp) root.folderIndex = root.rotate(root.folderIndex, root.folders, -1)
+          else if (k === Qt.Key_B) root.browse()
+          else if (k === Qt.Key_Escape) root.dismiss()
           else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.launch()
           else if (k === Qt.Key_Right || k === Qt.Key_Tab || k === Qt.Key_L) root.modelIndex = root.rotate(root.modelIndex, root.models, 1)
           else if (k === Qt.Key_Left || k === Qt.Key_Backtab || k === Qt.Key_H) root.modelIndex = root.rotate(root.modelIndex, root.models, -1)
@@ -163,6 +216,21 @@ Item {
           spacing: Style.spacing.sm
           Repeater { model: root.efforts; Chip { label: modelData; active: index === root.effortIndex } }
         }
+        Column {
+          Repeater {
+            model: root.folders
+            Text {
+              textFormat: Text.PlainText
+              elide: Text.ElideMiddle
+              width: content.width
+              color: index === root.folderIndex ? root.selectedText : root.foreground
+              opacity: index === root.folderIndex ? 1 : 0.6
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              text: (index === 0 ? "alt+0 " : "alt+" + index + " ") + root.tilde(modelData) + (index === 0 ? "  (terminal)" : "")
+            }
+          }
+        }
         Repeater {
           model: root.profiles.slice(0, 9)
           Text {
@@ -180,7 +248,7 @@ Item {
           opacity: 0.45
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
-          text: "←/→ model   ↑/↓ thinking   ⏎ launch   1-9 profile   esc close"
+          text: "←/→ model  ↑/↓ thinking  [ ] folder  b browse  ⏎ launch  1-9 profile"
         }
       }
     }
