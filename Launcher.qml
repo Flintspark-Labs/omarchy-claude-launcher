@@ -41,7 +41,7 @@ Item {
   function dismiss() {
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
-      root.shell.hide((root.manifest && root.manifest.id) || "rexsilex.claude-launcher")
+      root.shell.hide((root.manifest && root.manifest.id) || "flintspark.claude-launcher")
   }
 
   function toggle() {

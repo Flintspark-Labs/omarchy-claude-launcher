@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "rexsilex.claude-launcher",
+  "id": "flintspark.claude-launcher",
   "name": "Claude Launcher",
   "version": "1.0.0",
-  "author": "rexsilex",
+  "author": "Flintspark Labs",
   "license": "MIT",
   "description": "Launch Claude Code with a chosen model and thinking effort: named profiles with their own keyboard shortcuts, plus a themed chooser overlay.",
   "kinds": ["overlay"],
