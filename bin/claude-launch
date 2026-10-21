@@ -1,0 +1,24 @@
+#!/bin/bash
+# Usage: claude-launch <fable|opus|sonnet|haiku> <default|low|medium|high|xhigh|max>
+#        claude-launch --profile <name>
+CONFIG="${CLAUDE_LAUNCHER_CONFIG:-$HOME/.config/omarchy/claude-launcher.json}"
+
+if [[ ${1:-} == --profile ]]; then
+  read -r model effort < <(jq -r --arg n "$2" '.profiles[] | select(.name == $n) | "\(.model) \(.effort // "default")"' "$CONFIG")
+  [[ -n ${model:-} ]] || { echo "no profile named '$2' in $CONFIG" >&2; exit 1; }
+else
+  model=${1:?model required}; effort=${2:-default}
+fi
+
+case $model in
+  fable)  id=claude-fable-5-1 ;;
+  opus)   id=claude-opus-5-5 ;;
+  sonnet) id=claude-sonnet-5-5 ;;
+  haiku)  id=claude-haiku-5-5 ;;
+  *) echo "unknown model: $model" >&2; exit 1 ;;
+esac
+case $effort in default|low|medium|high|xhigh|max) ;; *) echo "unknown effort: $effort" >&2; exit 1 ;; esac
+
+args=(claude --model "$id")
+[[ $effort == default ]] || args+=(--effort "$effort")
+exec omarchy-launch-terminal "${args[@]}"

@@ -1,0 +1,9 @@
+{
+  "chooserKey": "SUPER + ALT + C",
+  "profiles": [
+    { "name": "Fable max",     "model": "fable",  "effort": "max",    "key": "SUPER + ALT + 1" },
+    { "name": "Opus high",     "model": "opus",   "effort": "high",   "key": "SUPER + ALT + 2" },
+    { "name": "Sonnet",        "model": "sonnet", "effort": "medium", "key": "SUPER + ALT + 3" },
+    { "name": "Haiku quick",   "model": "haiku",  "effort": "low",    "key": "SUPER + ALT + 4" }
+  ]
+}
